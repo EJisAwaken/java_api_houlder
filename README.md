@@ -1,5 +1,16 @@
 # API de File d'Attente de Tickets
 
+## Auteur et Liens
+
+**Auteur:** ESOALAHY JOSEFA
+
+**Liens importants:**
+- **Application déployée:** [https://esoalahyjosefa.ejlogiciel.com/](https://esoalahyjosefa.ejlogiciel.com/)
+- **Dépôt GitHub:** [https://github.com/EJisAwaken/java_api_houlder](https://github.com/EJisAwaken/java_api_houlder)
+- **Docker Hub:** [https://hub.docker.com/r/josefa613/java_api_houlder](https://hub.docker.com/r/josefa613/java_api_houlder)
+
+---
+
 Une API REST simple pour gérer un système de file d'attente de tickets (FIFO), construite avec Java pur (sans frameworks).
 
 ## Fonctionnalités
