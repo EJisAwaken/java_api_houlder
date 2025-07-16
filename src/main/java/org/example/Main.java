@@ -303,6 +303,31 @@ public class Main {
             String path = exchange.getRequestURI().getPath();
 
             if (path.equals("/")) {
+                // Print a message to the console to verify that our code is being executed
+                System.out.println("Root endpoint accessed! Returning API information.");
+
+                // Return API information for the root endpoint
+                String response = "Ticket Queue API\n\n" +
+                        "Points d'API disponibles:\n" +
+                        "GET    /api/tickets      - Lister tous les tickets\n" +
+                        "POST   /api/tickets      - Créer un nouveau ticket\n" +
+                        "DELETE /api/tickets      - Supprimer le prochain ticket\n" +
+                        "GET    /api/tickets/next - Voir le prochain ticket sans le supprimer\n" +
+                        "GET    /api/counters     - Lister tous les guichets\n" +
+                        "POST   /api/counters/:id - Assigner un ticket à un guichet\n" +
+                        "GET    /                 - Interface HTML\n";
+
+                exchange.getResponseHeaders().set("Content-Type", "text/plain");
+                exchange.sendResponseHeaders(200, response.getBytes().length);
+
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(response.getBytes());
+                }
+                return;
+            }
+
+            // For the HTML interface, use a different path
+            if (path.equals("/interface")) {
                 // Servir l'interface HTML
                 try (InputStream is = Main.class.getClassLoader().getResourceAsStream("static/index.html")) {
                     if (is == null) {
@@ -331,7 +356,7 @@ public class Main {
                 }
             } else {
                 // Pour tout autre chemin sous la racine, afficher les informations de l'API
-                String response = "API de File d'Attente de Tickets\n\n" +
+                String response = "Ticket Queue API\n\n" +
                         "Points d'API disponibles:\n" +
                         "GET    /api/tickets      - Lister tous les tickets\n" +
                         "POST   /api/tickets      - Créer un nouveau ticket\n" +
