@@ -303,32 +303,7 @@ public class Main {
             String path = exchange.getRequestURI().getPath();
 
             if (path.equals("/")) {
-                // Print a message to the console to verify that our code is being executed
-                System.out.println("Root endpoint accessed! Returning API information.");
-
-                // Return API information for the root endpoint
-                String response = "Ticket Queue API\n\n" +
-                        "Points d'API disponibles:\n" +
-                        "GET    /api/tickets      - Lister tous les tickets\n" +
-                        "POST   /api/tickets      - Créer un nouveau ticket\n" +
-                        "DELETE /api/tickets      - Supprimer le prochain ticket\n" +
-                        "GET    /api/tickets/next - Voir le prochain ticket sans le supprimer\n" +
-                        "GET    /api/counters     - Lister tous les guichets\n" +
-                        "POST   /api/counters/:id - Assigner un ticket à un guichet\n" +
-                        "GET    /                 - Interface HTML\n";
-
-                exchange.getResponseHeaders().set("Content-Type", "text/plain");
-                exchange.sendResponseHeaders(200, response.getBytes().length);
-
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
-                }
-                return;
-            }
-
-            // For the HTML interface, use a different path
-            if (path.equals("/interface")) {
-                // Servir l'interface HTML
+                // Servir l'interface HTML à la racine
                 try (InputStream is = Main.class.getClassLoader().getResourceAsStream("static/index.html")) {
                     if (is == null) {
                         // Si le fichier n'est pas trouvé, retourner une erreur 404
@@ -354,24 +329,25 @@ public class Main {
                         os.write(html.getBytes());
                     }
                 }
-            } else {
-                // Pour tout autre chemin sous la racine, afficher les informations de l'API
-                String response = "Ticket Queue API\n\n" +
-                        "Points d'API disponibles:\n" +
-                        "GET    /api/tickets      - Lister tous les tickets\n" +
-                        "POST   /api/tickets      - Créer un nouveau ticket\n" +
-                        "DELETE /api/tickets      - Supprimer le prochain ticket\n" +
-                        "GET    /api/tickets/next - Voir le prochain ticket sans le supprimer\n" +
-                        "GET    /api/counters     - Lister tous les guichets\n" +
-                        "POST   /api/counters/:id - Assigner un ticket à un guichet\n" +
-                        "GET    /                 - Interface HTML\n";
+                return;
+            }
 
-                exchange.getResponseHeaders().set("Content-Type", "text/plain");
-                exchange.sendResponseHeaders(200, response.getBytes().length);
+            // Pour tous les autres chemins, afficher les informations de l'API
+            String response = "Ticket Queue API\n\n" +
+                    "Points d'API disponibles:\n" +
+                    "GET    /api/tickets      - Lister tous les tickets\n" +
+                    "POST   /api/tickets      - Créer un nouveau ticket\n" +
+                    "DELETE /api/tickets      - Supprimer le prochain ticket\n" +
+                    "GET    /api/tickets/next - Voir le prochain ticket sans le supprimer\n" +
+                    "GET    /api/counters     - Lister tous les guichets\n" +
+                    "POST   /api/counters/:id - Assigner un ticket à un guichet\n" +
+                    "GET    /                 - Interface HTML\n";
 
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
-                }
+            exchange.getResponseHeaders().set("Content-Type", "text/plain");
+            exchange.sendResponseHeaders(200, response.getBytes().length);
+
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(response.getBytes());
             }
         }
     }

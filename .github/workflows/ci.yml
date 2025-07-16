@@ -5,7 +5,7 @@ on:
     types: [published]
 
 jobs:
-  push_to_registry:
+  push_to_registry_and_deployement:
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
     permissions:
@@ -45,3 +45,14 @@ jobs:
           subject-name: index.docker.io/josefa613/java_api_houlder
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+
+      - name: Execute remote SSH commands using password
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 209.38.118.77
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: docker run -p 8000:8000 josefa613/java_api_houlder
+
+
