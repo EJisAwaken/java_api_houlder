@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Système de File d'Attente</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 100px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        .ticket {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+        .ticket-agency {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .ticket-id {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .ticket-counter {
+            margin-bottom: 10px;
+        }
+        .ticket-status {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .ticket-waiting {
+            margin-top: 10px;
+            font-style: italic;
+        }
+        .next-ticket {
+            background-color: #e7f3ff;
+            border-color: #b3d7ff;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+        .counters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .counter {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            flex: 1;
+            min-width: 150px;
+            text-align: center;
+        }
+        .counter-available {
+            background-color: #e6ffe6;
+        }
+        .counter-busy {
+            background-color: #ffe6e6;
+        }
+    </style>
+</head>
+<body>
+    <h1>Système de File d'Attente</h1>
+
+    <div class="container">
+        <div class="card">
+            <h2>Créer un Nouveau Ticket</h2>
+            <div class="form-group">
+                <label for="ticketDescription">Description du Ticket:</label>
+                <textarea id="ticketDescription" placeholder="Entrez la description du ticket..."></textarea>
+            </div>
+            <button id="createTicket">Créer un Ticket</button>
+            <div id="createMessage"></div>
+        </div>
+
+        <div class="card">
+            <h2>Guichets</h2>
+            <button id="refreshCounters">Actualiser les Guichets</button>
+            <div id="counterList" class="counters">
+                <p>Chargement des guichets...</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Prochain Ticket</h2>
+            <div id="nextTicket">
+                <p>Pas de tickets dans la file d'attente</p>
+            </div>
+            <div class="button-group">
+                <button id="viewNext">Voir le Prochain</button>
+                <button id="removeNext">Supprimer le Prochain</button>
+            </div>
+            <div id="nextTicketMessage"></div>
+        </div>
+
+        <div class="card">
+            <h2>Tous les Tickets</h2>
+            <button id="refreshTickets">Actualiser la Liste</button>
+            <div id="ticketList">
+                <p>Chargement des tickets...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // URLs de base pour l'API
+        const TICKETS_API_URL = '/api/tickets';
+        const COUNTERS_API_URL = '/api/counters';
+
+        // Éléments DOM
+        const ticketDescription = document.getElementById('ticketDescription');
+        const createTicketBtn = document.getElementById('createTicket');
+        const createMessage = document.getElementById('createMessage');
+        const nextTicketDiv = document.getElementById('nextTicket');
+        const viewNextBtn = document.getElementById('viewNext');
+        const removeNextBtn = document.getElementById('removeNext');
+        const nextTicketMessage = document.getElementById('nextTicketMessage');
+        const ticketListDiv = document.getElementById('ticketList');
+        const refreshTicketsBtn = document.getElementById('refreshTickets');
+        const counterListDiv = document.getElementById('counterList');
+        const refreshCountersBtn = document.getElementById('refreshCounters');
+
+        // Formater la date
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+
+        // Traduire le statut du ticket
+        function translateStatus(status) {
+            switch(status) {
+                case 'en_attente': return 'En attente';
+                case 'en_traitement': return 'En traitement';
+                case 'terminé': return 'Terminé';
+                default: return status;
+            }
+        }
+
+        // Créer le HTML du ticket
+        function createTicketHTML(ticketData, isNext = false) {
+            const ticket = ticketData.ticket || ticketData;
+            const waitingCount = ticketData.waitingCount !== undefined ? ticketData.waitingCount : 0;
+
+            // Formater le numéro de ticket avec des zéros en tête
+            const formattedId = String(ticket.id).padStart(3, '0');
+
+            const ticketDiv = document.createElement('div');
+            ticketDiv.className = `ticket ${isNext ? 'next-ticket' : ''}`;
+
+            let counterInfo = 'Non assigné';
+            if (ticket.counterNumber) {
+                counterInfo = `Guichet N° : ${ticket.counterNumber}`;
+            }
+
+            ticketDiv.innerHTML = `
+                <div class="ticket-agency">${ticket.agencyName}</div>
+                <div class="ticket-id">Ticket N° : ${formattedId}</div>
+                <div class="ticket-counter">${counterInfo}</div>
+                <div class="ticket-status">Statut : ${translateStatus(ticket.status)}</div>
+                <div class="ticket-waiting">Il y a encore ${waitingCount} personne(s) en attente.</div>
+            `;
+            return ticketDiv;
+        }
+
+        // Créer le HTML du guichet
+        function createCounterHTML(counter) {
+            const counterDiv = document.createElement('div');
+            const isAvailable = counter.available;
+            counterDiv.className = `counter ${isAvailable ? 'counter-available' : 'counter-busy'}`;
+
+            let content = `
+                <h3>${counter.name}</h3>
+                <p>Statut : ${isAvailable ? 'Disponible' : 'Occupé'}</p>
+            `;
+
+            if (counter.currentTicket) {
+                const formattedId = String(counter.currentTicket.id).padStart(3, '0');
+                content += `<p>Ticket en cours : ${formattedId}</p>`;
+                // Ajouter un bouton pour terminer la session avec le client actuel
+                content += `<button class="end-session" data-counter-id="${counter.id}">Terminer la session</button>`;
+            }
+
+            // Ajouter un bouton pour basculer la disponibilité du guichet
+            content += `<button class="toggle-availability" data-counter-id="${counter.id}">${isAvailable ? 'Marquer comme occupé' : 'Marquer comme disponible'}</button>`;
+
+            if (isAvailable) {
+                content += `<button class="assign-ticket" data-counter-id="${counter.id}">Assigner un ticket</button>`;
+            }
+
+            counterDiv.innerHTML = content;
+            return counterDiv;
+        }
+
+        // Récupérer tous les tickets
+        async function fetchAllTickets() {
+            try {
+                const response = await fetch(TICKETS_API_URL);
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+                const tickets = await response.json();
+
+                ticketListDiv.innerHTML = '';
+                if (tickets.length === 0) {
+                    ticketListDiv.innerHTML = '<p>Pas de tickets dans la file d\'attente</p>';
+                } else {
+                    tickets.forEach(ticketData => {
+                        ticketListDiv.appendChild(createTicketHTML(ticketData));
+                    });
+                }
+            } catch (error) {
+                console.error('Erreur lors de la récupération des tickets:', error);
+                ticketListDiv.innerHTML = `<p class="error">Erreur lors du chargement des tickets: ${error.message}</p>`;
+            }
+        }
+
+        // Récupérer tous les guichets
+        async function fetchAllCounters() {
+            try {
+                const response = await fetch(COUNTERS_API_URL);
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+                const counters = await response.json();
+
+                counterListDiv.innerHTML = '';
+                if (counters.length === 0) {
+                    counterListDiv.innerHTML = '<p>Aucun guichet disponible</p>';
+                } else {
+                    counters.forEach(counter => {
+                        counterListDiv.appendChild(createCounterHTML(counter));
+                    });
+
+                    // Ajouter des écouteurs d'événements pour les boutons d'assignation
+                    document.querySelectorAll('.assign-ticket').forEach(button => {
+                        button.addEventListener('click', () => {
+                            const counterId = button.getAttribute('data-counter-id');
+                            assignTicketToCounter(counterId);
+                        });
+                    });
+
+                    // Ajouter des écouteurs d'événements pour les boutons de bascule de disponibilité
+                    document.querySelectorAll('.toggle-availability').forEach(button => {
+                        button.addEventListener('click', () => {
+                            const counterId = button.getAttribute('data-counter-id');
+                            toggleCounterAvailability(counterId);
+                        });
+                    });
+
+                    // Ajouter des écouteurs d'événements pour les boutons de fin de session
+                    document.querySelectorAll('.end-session').forEach(button => {
+                        button.addEventListener('click', () => {
+                            const counterId = button.getAttribute('data-counter-id');
+                            endSession(counterId);
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('Erreur lors de la récupération des guichets:', error);
+                counterListDiv.innerHTML = `<p class="error">Erreur lors du chargement des guichets: ${error.message}</p>`;
+            }
+        }
+
+        // Assigner un ticket à un guichet
+        async function assignTicketToCounter(counterId) {
+            try {
+                const response = await fetch(`${COUNTERS_API_URL}/${counterId}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        alert('Pas de tickets dans la file d\'attente ou guichet non trouvé');
+                        return;
+                    }
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+
+                const responseData = await response.json();
+                alert(`Ticket N° ${String(responseData.ticket.id).padStart(3, '0')} assigné au ${responseData.counter.name}`);
+
+                // Actualiser les affichages
+                fetchAllCounters();
+                fetchAllTickets();
+                viewNextTicket();
+            } catch (error) {
+                console.error('Erreur lors de l\'assignation du ticket:', error);
+                alert(`Erreur: ${error.message}`);
+            }
+        }
+
+        // Basculer la disponibilité d'un guichet
+        async function toggleCounterAvailability(counterId) {
+            try {
+                const response = await fetch(`${COUNTERS_API_URL}/${counterId}/toggle`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        alert('Guichet non trouvé');
+                        return;
+                    }
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+
+                const responseData = await response.json();
+
+                // Si un ticket a été assigné (le guichet est devenu disponible et il y avait des tickets en attente)
+                if (responseData.ticket) {
+                    alert(`Le guichet est maintenant disponible. Ticket N° ${String(responseData.ticket.id).padStart(3, '0')} assigné automatiquement.`);
+                } else {
+                    // Si le guichet a simplement changé de disponibilité
+                    alert(`La disponibilité du guichet a été mise à jour. Statut: ${responseData.available ? 'Disponible' : 'Occupé'}`);
+                }
+
+                // Actualiser les affichages
+                fetchAllCounters();
+                fetchAllTickets();
+                viewNextTicket();
+            } catch (error) {
+                console.error('Erreur lors du changement de disponibilité du guichet:', error);
+                alert(`Erreur: ${error.message}`);
+            }
+        }
+
+        // Terminer la session avec le client actuel
+        async function endSession(counterId) {
+            try {
+                const response = await fetch(`${COUNTERS_API_URL}/${counterId}/end-session`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        alert('Guichet non trouvé');
+                        return;
+                    }
+                    if (response.status === 400) {
+                        alert('Pas de ticket en cours pour ce guichet');
+                        return;
+                    }
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+
+                const responseData = await response.json();
+                alert(`Session terminée avec succès pour le ticket N° ${String(responseData.ticket.id).padStart(3, '0')}`);
+
+                // Actualiser les affichages
+                fetchAllCounters();
+                fetchAllTickets();
+                viewNextTicket();
+            } catch (error) {
+                console.error('Erreur lors de la fin de session:', error);
+                alert(`Erreur: ${error.message}`);
+            }
+        }
+
+        // Voir le prochain ticket
+        async function viewNextTicket() {
+            try {
+                const response = await fetch(`${TICKETS_API_URL}/next`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        nextTicketDiv.innerHTML = '<p>Pas de tickets dans la file d\'attente</p>';
+                        nextTicketMessage.innerHTML = '';
+                        return;
+                    }
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+
+                const responseData = await response.json();
+                nextTicketDiv.innerHTML = '';
+                nextTicketDiv.appendChild(createTicketHTML(responseData, true));
+                nextTicketMessage.innerHTML = '';
+            } catch (error) {
+                console.error('Erreur lors de la visualisation du prochain ticket:', error);
+                nextTicketMessage.innerHTML = `<p class="error">Erreur: ${error.message}</p>`;
+            }
+        }
+
+        // Supprimer le prochain ticket
+        async function removeNextTicket() {
+            try {
+                const response = await fetch(TICKETS_API_URL, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        nextTicketDiv.innerHTML = '<p>Pas de tickets dans la file d\'attente</p>';
+                        nextTicketMessage.innerHTML = '<p class="error">La file d\'attente est vide</p>';
+                        return;
+                    }
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+
+                const responseData = await response.json();
+                const removedTicket = responseData.ticket || responseData;
+                // Formater le numéro de ticket avec des zéros en tête
+                const formattedId = String(removedTicket.id).padStart(3, '0');
+                nextTicketMessage.innerHTML = `<p class="success">Ticket N° ${formattedId} supprimé</p>`;
+
+                // Actualiser les affichages
+                fetchAllTickets();
+                viewNextTicket();
+            } catch (error) {
+                console.error('Erreur lors de la suppression du ticket:', error);
+                nextTicketMessage.innerHTML = `<p class="error">Erreur: ${error.message}</p>`;
+            }
+        }
+
+        // Créer un nouveau ticket
+        async function createTicket() {
+            const description = ticketDescription.value.trim();
+            if (!description) {
+                createMessage.innerHTML = '<p class="error">Veuillez entrer une description du ticket</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(TICKETS_API_URL, {
+                    method: 'POST',
+                    body: description,
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+
+                const responseData = await response.json();
+                const newTicket = responseData.ticket || responseData;
+                // Formater le numéro de ticket avec des zéros en tête
+                const formattedId = String(newTicket.id).padStart(3, '0');
+                createMessage.innerHTML = `<p class="success">Ticket N° ${formattedId} créé</p>`;
+                ticketDescription.value = '';
+
+                // Actualiser les affichages
+                fetchAllTickets();
+                viewNextTicket();
+            } catch (error) {
+                console.error('Erreur lors de la création du ticket:', error);
+                createMessage.innerHTML = `<p class="error">Erreur: ${error.message}</p>`;
+            }
+        }
+
+        // Écouteurs d'événements
+        createTicketBtn.addEventListener('click', createTicket);
+        viewNextBtn.addEventListener('click', viewNextTicket);
+        removeNextBtn.addEventListener('click', removeNextTicket);
+        refreshTicketsBtn.addEventListener('click', fetchAllTickets);
+        refreshCountersBtn.addEventListener('click', fetchAllCounters);
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchAllTickets();
+            fetchAllCounters();
+            viewNextTicket();
+        });
+    </script>
+</body>
+</html>
