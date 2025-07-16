@@ -53,6 +53,9 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
-          script: docker run -p 2222:8080 josefa613/java_api_houlder
-
-
+          script: |
+            docker ps -q --filter "ancestor=josefa613/java_api_houlder:latest" | xargs -r docker stop      
+            docker ps -a -q --filter "ancestor=josefa613/java_api_houlder:latest" | xargs -r docker rm
+            docker pull josefa613/java_api_houlder:latest
+            docker run -d -p 2222:8080 josefa613/java_api_houlder:latest
+    
