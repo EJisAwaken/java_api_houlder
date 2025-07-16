@@ -56,5 +56,5 @@ jobs:
           script: |
             cd /root/java_houlder
             docker compose pull
-            docke comopse up --build -d
+            docker compose up --build -d
     
